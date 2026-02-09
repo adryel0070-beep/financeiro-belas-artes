@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<script type="module">
+import { protegerPagina } from './auth.js'
+protegerPagina()
+</script>
+
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mensalidade do Aluno</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h1>Mensalidade do Aluno</h1>
+
+<p id="nomeAluno"></p>
+
+<h2>Mensalidade Atual</h2>
+<p id="mensalidadeAtual"></p>
+
+<h2>Nova Mensalidade / Reajuste</h2>
+
+<form id="formMensalidade" class="form">
+  <label>
+    Valor (R$)
+    <input type="number" step="0.01" id="valor" required>
+  </label>
+
+  <label>
+    Dia de Vencimento
+    <select id="vencimento">
+      <option value="5">Dia 5</option>
+      <option value="10">Dia 10</option>
+      <option value="15">Dia 15</option>
+    </select>
+  </label>
+
+  <label>
+    Início da Vigência
+    <input type="date" id="inicio" required>
+  </label>
+
+  <button type="submit">Salvar Mensalidade</button>
+</form>
+
+<p id="msg" class="mensagem"></p>
+
+<hr>
+
+<h2>Histórico de Mensalidades</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Valor</th>
+      <th>Vencimento</th>
+      <th>Início</th>
+      <th>Fim</th>
+    </tr>
+  </thead>
+  <tbody id="historico"></tbody>
+</table>
+
+<script type="module">
+import { supabase } from './supabase.js'
+
+const params = new URLSearchParams(window.location.search)
+const alunoId = params.get('aluno')
+
+const nomeAluno = document.getElementById('nomeAluno')
+const mensalidadeAtual = document.getElementById('mensalidadeAtual')
+const historico = document.getElementById('historico')
+const msg = document.getElementById('msg')
+
+if (!alunoId) {
+  alert('Aluno não informado')
+  location.href = 'alunos.html'
+}
+
+async function carregarAluno() {
+  const { data } = await supabase
+    .from('alunos')
+    .select('nome')
+    .eq('id', alunoId)
+    .single()
+
+  nomeAluno.innerText = `Aluno: ${data.nome}`
+}
+
+async function carregarMensalidades() {
+  const { data } = await supabase
+    .from('mensalidades')
+    .select('*')
+    .eq('aluno_id', alunoId)
+    .order('data_inicio', { ascending: false })
+
+  historico.innerHTML = ''
+  mensalidadeAtual.innerText = 'Nenhuma mensalidade ativa'
+
+  data.forEach(m => {
+    if (!m.data_fim) {
+      mensalidadeAtual.innerText =
+        `R$ ${Number(m.valor).toFixed(2)} — Vencimento dia ${m.dia_vencimento}`
+    }
+
+    historico.innerHTML += `
+      <tr>
+        <td>R$ ${Number(m.valor).toFixed(2)}</td>
+        <td>Dia ${m.dia_vencimento}</td>
+        <td>${m.data_inicio}</td>
+        <td>${m.data_fim ?? '-'}</td>
+      </tr>
+    `
+  })
+}
+
+document.getElementById('formMensalidade')
+  .addEventListener('submit', async (e) => {
+    e.preventDefault()
+
+    const valor = valorInput.value
+    const venc = vencimento.value
+    const inicio = inicioInput.value
+
+    // Encerra mensalidade ativa
+    await supabase
+      .from('mensalidades')
+      .update({ data_fim: inicio })
+      .eq('aluno_id', alunoId)
+      .is('data_fim', null)
+
+    // Cria nova
+    const { error } = await supabase
+      .from('mensalidades')
+      .insert({
+        aluno_id: alunoId,
+        valor: valor,
+        dia_vencimento: venc,
+        data_inicio: inicio
+      })
+
+    if (error) {
+      msg.innerText = 'Erro ao salvar mensalidade'
+      msg.style.color = 'red'
+      console.error(error)
+      return
+    }
+
+    msg.innerText = 'Mensalidade salva com sucesso!'
+    msg.style.color = 'green'
+    e.target.reset()
+    carregarMensalidades()
+  })
+
+const valorInput = document.getElementById('valor')
+const vencimento = document.getElementById('vencimento')
+const inicioInput = document.getElementById('inicio')
+
+carregarAluno()
+carregarMensalidades()
+</script>
+
+</body>
+</html>
