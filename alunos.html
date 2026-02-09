@@ -16,6 +16,8 @@ protegerPagina()
 
 <form id="formAluno" class="form">
 
+  <input type="hidden" id="aluno_id">
+
   <label>
     Nome do Aluno
     <input type="text" id="nome" required>
@@ -23,7 +25,7 @@ protegerPagina()
 
   <label>
     Telefone / WhatsApp
-    <input type="text" id="telefone" placeholder="(99) 99999-9999">
+    <input type="text" id="telefone">
   </label>
 
   <label>
@@ -41,7 +43,7 @@ protegerPagina()
     <input type="date" id="data_nascimento">
   </label>
 
-  <button type="submit">Cadastrar Aluno</button>
+  <button type="submit" id="btnSalvar">Cadastrar Aluno</button>
 </form>
 
 <p id="mensagem" class="mensagem"></p>
@@ -64,34 +66,52 @@ import { supabase } from './supabase.js'
 
 const form = document.getElementById('formAluno')
 const msg  = document.getElementById('mensagem')
+const btnSalvar = document.getElementById('btnSalvar')
+
+let alunoEditandoId = null
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault()
 
   const aluno = {
-    nome: document.getElementById('nome').value,
-    telefone: document.getElementById('telefone').value,
-    email: document.getElementById('email').value,
-    instrumento: document.getElementById('instrumento').value,
-    data_nascimento: document.getElementById('data_nascimento').value || null,
-    data_matricula: new Date().toISOString().slice(0, 10),
-    ativo: true
+    nome: nome.value,
+    telefone: telefone.value,
+    email: email.value,
+    instrumento: instrumento.value,
+    data_nascimento: data_nascimento.value || null
   }
 
-  const { error } = await supabase
-    .from('alunos')
-    .insert(aluno)
+  let resposta
 
-  if (error) {
-    msg.innerText = 'Erro ao cadastrar aluno'
+  if (alunoEditandoId) {
+    resposta = await supabase
+      .from('alunos')
+      .update(aluno)
+      .eq('id', alunoEditandoId)
+  } else {
+    aluno.data_matricula = new Date().toISOString().slice(0, 10)
+    aluno.ativo = true
+
+    resposta = await supabase
+      .from('alunos')
+      .insert(aluno)
+  }
+
+  if (resposta.error) {
+    msg.innerText = 'Erro ao salvar aluno'
     msg.style.color = 'red'
-    console.error(error)
+    console.error(resposta.error)
     return
   }
 
-  msg.innerText = 'Aluno cadastrado com sucesso!'
+  msg.innerText = alunoEditandoId
+    ? 'Aluno atualizado com sucesso!'
+    : 'Aluno cadastrado com sucesso!'
+
   msg.style.color = 'green'
   form.reset()
+  alunoEditandoId = null
+  btnSalvar.innerText = 'Cadastrar Aluno'
   listarAlunos()
 })
 
@@ -115,11 +135,35 @@ async function listarAlunos() {
         <td>${aluno.nome}</td>
         <td>${aluno.instrumento ?? '-'}</td>
         <td>
-          <a href="aluno-detalhe.html?id=${aluno.id}">Ver histórico</a>
+          <button onclick="editarAluno('${aluno.id}')">Editar</button>
+          <a href="mensalidades.html?aluno=${aluno.id}">Financeiro</a>
         </td>
       </tr>
     `
   })
+}
+
+window.editarAluno = async (id) => {
+  const { data, error } = await supabase
+    .from('alunos')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error) {
+    console.error(error)
+    return
+  }
+
+  alunoEditandoId = id
+
+  nome.value = data.nome
+  telefone.value = data.telefone ?? ''
+  email.value = data.email ?? ''
+  instrumento.value = data.instrumento ?? ''
+  data_nascimento.value = data.data_nascimento ?? ''
+
+  btnSalvar.innerText = 'Salvar Alterações'
 }
 
 listarAlunos()
