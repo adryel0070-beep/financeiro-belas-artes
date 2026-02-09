@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<script type="module">
+import { protegerPagina } from './auth.js'
+protegerPagina()
+</script>
+
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Painel Administrativo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<h1>Painel Administrativo</h1>
+
+<div class="painel">
+
+  <a href="alunos.html" class="card-painel">Cadastrar Aluno</a>
+
+  <a href="pagamento.html" class="card-painel">Registrar Pagamento</a>
+
+  <a href="historico.html" class="card-painel">Histórico de Pagamentos</a>
+
+  <button onclick="logout()" class="card-painel sair">Sair</button>
+
+</div>
+
+<script type="module">
+import { supabase } from './supabase.js'
+
+window.logout = async () => {
+  await supabase.auth.signOut()
+  window.location.href = 'login.html'
+}
+</script>
+
+</body>
+</html>

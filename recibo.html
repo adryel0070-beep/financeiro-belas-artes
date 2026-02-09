@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Recibo de Pagamento</title>
+  <link rel="stylesheet" href="style.css">
+
+  <style>
+    body {
+      background: #f5f5f5;
+    }
+
+    .recibo {
+      max-width: 700px;
+      margin: 40px auto;
+      background: #fff;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,.1);
+      font-family: Arial, sans-serif;
+    }
+
+    .recibo h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .linha {
+      margin-bottom: 12px;
+      font-size: 1.05rem;
+    }
+
+    .linha strong {
+      display: inline-block;
+      width: 180px;
+    }
+
+    .assinatura {
+      margin-top: 50px;
+      text-align: center;
+    }
+
+    .assinatura hr {
+      width: 300px;
+      margin-bottom: 10px;
+    }
+
+    .acoes {
+      margin-top: 30px;
+      text-align: center;
+    }
+
+    .acoes button {
+      padding: 10px 20px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    @media print {
+      .acoes {
+        display: none;
+      }
+
+      body {
+        background: #fff;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="recibo" id="recibo">
+  <h1>Recibo de Pagamento</h1>
+
+  <div class="linha"><strong>Aluno:</strong> <span id="aluno"></span></div>
+  <div class="linha"><strong>Competência:</strong> <span id="competencia"></span></div>
+  <div class="linha"><strong>Valor Pago:</strong> R$ <span id="valor"></span></div>
+  <div class="linha"><strong>Forma de Pagamento:</strong> <span id="forma"></span></div>
+  <div class="linha"><strong>Data do Pagamento:</strong> <span id="data"></span></div>
+
+  <p style="margin-top:30px;">
+    Declaro que recebi o valor acima referente à mensalidade da Escola de Música Belas Artes.
+  </p>
+
+  <div class="assinatura">
+    <hr>
+    <strong>Escola de Música Belas Artes</strong><br>
+    CNPJ: ____________
+  </div>
+
+  <div class="acoes">
+    <button onclick="window.print()">Imprimir / Salvar em PDF</button>
+  </div>
+</div>
+
+<script type="module">
+import { supabase } from './supabase.js'
+
+// =======================
+// Pega ID da URL
+// =======================
+const params = new URLSearchParams(window.location.search)
+const pagamentoId = params.get('id')
+
+if (!pagamentoId) {
+  alert('Pagamento não informado')
+}
+
+// =======================
+// Buscar pagamento
+// =======================
+async function carregarRecibo() {
+  const { data, error } = await supabase
+    .from('pagamentos')
+    .select(`
+      id,
+      competencia,
+      valor_pago,
+      forma_pagamento,
+      data_pagamento,
+      alunos (
+        nome
+      )
+    `)
+    .eq('id', pagamentoId)
+    .single()
+
+  if (error || !data) {
+    alert('Erro ao carregar recibo')
+    console.error(error)
+    return
+  }
+
+  document.getElementById('aluno').innerText = data.alunos.nome
+  document.getElementById('competencia').innerText =
+    new Date(data.competencia).toLocaleDateString('pt-BR', {
+      month: 'long',
+      year: 'numeric'
+    })
+
+  document.getElementById('valor').innerText =
+    Number(data.valor_pago).toFixed(2)
+
+  document.getElementById('forma').innerText = data.forma_pagamento
+
+  document.getElementById('data').innerText =
+    new Date(data.data_pagamento).toLocaleDateString('pt-BR')
+}
+
+carregarRecibo()
+</script>
+
+</body>
+</html>

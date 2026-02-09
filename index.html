@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<script type="module">
+import { protegerPagina } from './auth.js'
+protegerPagina()
+</script>
+
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Painel Administrativo | Escola de Música</title>
+  <link rel="stylesheet" href="style.css">
+
+  <style>
+    .menu-admin {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin: 20px 0 40px;
+    }
+
+    .menu-admin a,
+    .menu-admin button {
+      padding: 10px 18px;
+      background: #2f3e46;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+
+    .menu-admin a:hover,
+    .menu-admin button:hover {
+      background: #4CAF50;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>Painel Administrativo</h1>
+
+<!-- MENU ADMIN -->
+<nav class="menu-admin">
+  <a href="alunos.html">Alunos</a>
+  <a href="pagamento.html">Registrar Pagamento</a>
+  <a href="historico.html">Histórico</a>
+  <button onclick="logout()">Sair</button>
+</nav>
+
+<section class="cards">
+  <div class="card">
+    <h3>Alunos Ativos</h3>
+    <p id="totalAlunos">--</p>
+  </div>
+
+  <div class="card">
+    <h3>Inadimplentes</h3>
+    <p id="inadimplentes">--</p>
+  </div>
+
+  <div class="card">
+    <h3>Arrecadado no Mês</h3>
+    <p id="arrecadado">R$ --</p>
+  </div>
+</section>
+
+<h2>Alunos Inadimplentes</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Aluno</th>
+      <th>Valor</th>
+      <th>Vencimento</th>
+    </tr>
+  </thead>
+  <tbody id="tabelaInadimplentes"></tbody>
+</table>
+
+<script type="module">
+import { supabase } from './supabase.js'
+
+// LOGOUT
+window.logout = async () => {
+  await supabase.auth.signOut()
+  window.location.href = 'login.html'
+}
+
+// DASHBOARD
+async function carregarDashboard() {
+
+  // Total de alunos ativos
+  const { count: totalAlunos } = await supabase
+    .from('alunos')
+    .select('*', { count: 'exact', head: true })
+    .eq('ativo', true)
+
+  document.getElementById('totalAlunos').innerText = totalAlunos ?? 0
+
+  // Inadimplentes
+  const { data: inadimplentes } = await supabase
+    .from('vw_inadimplentes')
+    .select('*')
+
+  document.getElementById('inadimplentes').innerText = inadimplentes.length
+
+  const tabela = document.getElementById('tabelaInadimplentes')
+  tabela.innerHTML = ''
+
+  inadimplentes.forEach(aluno => {
+    tabela.innerHTML += `
+      <tr>
+        <td>${aluno.nome}</td>
+        <td>R$ ${Number(aluno.valor).toFixed(2)}</td>
+        <td>Dia ${aluno.dia_vencimento}</td>
+      </tr>
+    `
+  })
+
+  // Arrecadado no mês
+  const inicioMes = new Date()
+  inicioMes.setDate(1)
+
+  const { data: pagamentos } = await supabase
+    .from('pagamentos')
+    .select('valor_pago')
+    .gte('competencia', inicioMes.toISOString().slice(0,10))
+
+  const total = pagamentos.reduce((s, p) => s + Number(p.valor_pago), 0)
+
+  document.getElementById('arrecadado').innerText =
+    `R$ ${total.toFixed(2)}`
+}
+
+carregarDashboard()
+</script>
+
+</body>
+</html>

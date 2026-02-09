@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<script type="module">
+import { protegerPagina } from './auth.js'
+protegerPagina()
+</script>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cadastro de Alunos</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h1>Cadastro de Aluno</h1>
+
+<form id="formAluno" class="form">
+  <label>
+    Nome do Aluno
+    <input type="text" id="nome" required>
+  </label>
+
+  <label>
+    WhatsApp
+    <input type="text" id="whatsapp" placeholder="(99) 99999-9999">
+  </label>
+
+  <label>
+    Instrumento
+    <input type="text" id="instrumento">
+  </label>
+
+  <label>
+    Valor da Mensalidade (R$)
+    <input type="number" id="valor" step="0.01" required>
+  </label>
+
+  <label>
+    Dia de Vencimento
+    <select id="vencimento">
+      <option value="5">Dia 5</option>
+      <option value="10">Dia 10</option>
+      <option value="15">Dia 15</option>
+    </select>
+  </label>
+
+<h2>Alunos Cadastrados</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Nome</th>
+      <th>Instrumento</th>
+      <th>Ações</th>
+    </tr>
+  </thead>
+  <tbody id="listaAlunos"></tbody>
+</table>
+
+  <button type="submit">Cadastrar Aluno</button>
+</form>
+
+<p id="mensagem" class="mensagem"></p>
+
+<script type="module">
+import { supabase } from './supabase.js'
+
+const form = document.getElementById('formAluno')
+const msg  = document.getElementById('mensagem')
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault()
+
+  const aluno = {
+    nome: document.getElementById('nome').value,
+    whatsapp: document.getElementById('whatsapp').value,
+    instrumento: document.getElementById('instrumento').value,
+    valor_mensalidade: document.getElementById('valor').value,
+    dia_vencimento: document.getElementById('vencimento').value,
+    ativo: true
+  }
+
+  const { error } = await supabase
+    .from('alunos')
+    .insert(aluno)
+
+  if (error) {
+    msg.innerText = 'Erro ao cadastrar aluno'
+    msg.style.color = 'red'
+    console.error(error)
+  } else {
+    msg.innerText = 'Aluno cadastrado com sucesso!'
+    msg.style.color = 'green'
+    form.reset()
+  }
+async function listarAlunos() {
+  const { data } = await supabase
+    .from('alunos')
+    .select('*')
+    .order('nome')
+
+  const tbody = document.getElementById('listaAlunos')
+  tbody.innerHTML = ''
+
+  data.forEach(aluno => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${aluno.nome}</td>
+        <td>${aluno.instrumento ?? '-'}</td>
+        <td>
+          <a href="aluno-detalhe.html?id=${aluno.id}">Ver histórico</a>
+        </td>
+      </tr>
+    `
+  })
+}
+
+listarAlunos()
+})
+</script>
+
+</body>
+</html>
