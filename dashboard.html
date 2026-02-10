@@ -53,10 +53,26 @@ import { supabase } from './supabase.js'
 const hoje = new Date()
 
 /* ========================
- TOTAL DE ALUNOS ATIVOS
+ UTIL
 ======================== */
 
-async function totalAlunosAtivos() {
+function gerarCompetencias(inicio, fim){
+  const lista = []
+  let atual = new Date(inicio)
+  const dataFim = new Date(fim)
+
+  while(atual <= dataFim){
+    lista.push(new Date(atual))
+    atual.setMonth(atual.getMonth() + 1)
+  }
+  return lista
+}
+
+/* ========================
+ TOTAL ALUNOS
+======================== */
+
+async function totalAlunosAtivos(){
   const { count } = await supabase
     .from('alunos')
     .select('*', { count: 'exact', head: true })
@@ -66,86 +82,24 @@ async function totalAlunosAtivos() {
 }
 
 /* ========================
- MENSALIDADES VENCIDAS
-======================== */
-
-async function mensalidadesVencidas() {
-
-  const { data } = await supabase
-    .from('mensalidades')
-    .select(`
-      id,
-      competencia,
-      valor,
-      dia_vencimento,
-      alunos(nome),
-      pagamentos(id)
-    `)
-
-  const vencidas = data.filter(m => {
-
-    if (m.pagamentos.length > 0) return false
-
-    const comp = new Date(m.competencia)
-    const vencimento = new Date(
-      comp.getFullYear(),
-      comp.getMonth(),
-      m.dia_vencimento
-    )
-
-    return hoje > vencimento
-  })
-
-  document.getElementById('inadimplentes').innerText = vencidas.length
-
-  const tbody = document.getElementById('tabelaInadimplentes')
-  tbody.innerHTML = ''
-
-  vencidas.forEach(m => {
-
-    const comp = new Date(m.competencia)
-    const venc = new Date(
-      comp.getFullYear(),
-      comp.getMonth(),
-      m.dia_vencimento
-    )
-
-    const diasAtraso = Math.floor(
-      (hoje - venc) / (1000 * 60 * 60 * 24)
-    )
-
-    const competenciaFormatada =
-      (comp.getMonth()+1).toString().padStart(2,'0')
-      + '/' + comp.getFullYear()
-
-    tbody.innerHTML += `
-      <tr>
-        <td>${m.alunos.nome}</td>
-        <td>${competenciaFormatada}</td>
-        <td>R$ ${Number(m.valor).toFixed(2)}</td>
-        <td>${venc.toLocaleDateString()}</td>
-        <td>${diasAtraso}</td>
-      </tr>
-    `
-  })
-}
-
-/* ========================
  ARRECADADO NO MÊS
 ======================== */
 
-async function arrecadadoMes() {
+async function arrecadadoMes(){
 
   const inicioMes = new Date()
   inicioMes.setDate(1)
 
+  const compInicio =
+    inicioMes.toISOString().slice(0,7) + '-01'
+
   const { data } = await supabase
     .from('pagamentos')
     .select('valor_pago')
-    .gte('data_pagamento', inicioMes.toISOString().slice(0,10))
+    .eq('competencia', compInicio)
 
   const total = data.reduce(
-    (s, p) => s + Number(p.valor_pago), 0
+    (s,p) => s + Number(p.valor_pago), 0
   )
 
   document.getElementById('arrecadado').innerText =
@@ -153,13 +107,93 @@ async function arrecadadoMes() {
 }
 
 /* ========================
+ INADIMPLÊNCIA REAL
+======================== */
+
+async function inadimplentes(){
+
+  const { data: mensalidades } = await supabase
+    .from('mensalidades')
+    .select(`
+      id_mensalidade,
+      aluno_id,
+      valor,
+      dia_vencimento,
+      data_inicio,
+      data_fim,
+      alunos(nome)
+    `)
+
+  const { data: pagamentos } = await supabase
+    .from('pagamentos')
+    .select('mensalidade_id, competencia')
+
+  const tbody = document.getElementById('tabelaInadimplentes')
+  tbody.innerHTML = ''
+
+  let totalInadimplentes = 0
+
+  mensalidades.forEach(m => {
+
+    const competencias = gerarCompetencias(
+      m.data_inicio,
+      m.data_fim
+    )
+
+    competencias.forEach(c => {
+
+      const competenciaISO =
+        c.toISOString().slice(0,7) + '-01'
+
+      const vencimento = new Date(
+        c.getFullYear(),
+        c.getMonth(),
+        m.dia_vencimento
+      )
+
+      if (hoje <= vencimento) return
+
+      const pago = pagamentos.some(p =>
+        p.mensalidade_id === m.id_mensalidade &&
+        p.competencia === competenciaISO
+      )
+
+      if (pago) return
+
+      totalInadimplentes++
+
+      const diasAtraso = Math.floor(
+        (hoje - vencimento) / (1000*60*60*24)
+      )
+
+      const competenciaFmt =
+        String(c.getMonth()+1).padStart(2,'0') +
+        '/' + c.getFullYear()
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${m.alunos.nome}</td>
+          <td>${competenciaFmt}</td>
+          <td>R$ ${Number(m.valor).toFixed(2)}</td>
+          <td>${vencimento.toLocaleDateString()}</td>
+          <td>${diasAtraso}</td>
+        </tr>
+      `
+    })
+  })
+
+  document.getElementById('inadimplentes').innerText =
+    totalInadimplentes
+}
+
+/* ========================
  CARREGAR DASHBOARD
 ======================== */
 
-async function carregarDashboard() {
+async function carregarDashboard(){
   await totalAlunosAtivos()
-  await mensalidadesVencidas()
   await arrecadadoMes()
+  await inadimplentes()
 }
 
 carregarDashboard()
