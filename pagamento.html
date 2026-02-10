@@ -14,22 +14,27 @@
 
 <body>
 
-<h1>Registro de Pagamento</h1>
+<h1>Registrar Pagamento</h1>
 
 <form id="formPagamento" class="form">
 
   <label>
     Aluno
     <select id="aluno" required>
-      <option value="">Selecione um aluno</option>
+      <option value="">Selecione o aluno</option>
     </select>
   </label>
 
-  <p id="infoMensalidade" style="font-weight:bold;"></p>
+  <label>
+    Mensalidade (Competência)
+    <select id="mensalidade" required disabled>
+      <option value="">Selecione a mensalidade</option>
+    </select>
+  </label>
 
   <label>
-    Competência
-    <input type="month" id="competencia" required>
+    Valor (R$)
+    <input type="number" id="valor" step="0.01" readonly>
   </label>
 
   <label>
@@ -41,7 +46,13 @@
     </select>
   </label>
 
-  <button type="submit">Registrar Pagamento</button>
+  <label>
+    Data do Pagamento
+    <input type="date" id="dataPagamento" required>
+  </label>
+
+  <button type="submit">Confirmar Pagamento</button>
+
 </form>
 
 <p id="mensagem" class="mensagem"></p>
@@ -49,67 +60,86 @@
 <script type="module">
 import { supabase } from './supabase.js'
 
-const selectAluno = document.getElementById('aluno')
-const form = document.getElementById('formPagamento')
+const alunoSelect = document.getElementById('aluno')
+const mensalidadeSelect = document.getElementById('mensalidade')
+const valorInput = document.getElementById('valor')
+const dataPagamentoInput = document.getElementById('dataPagamento')
 const msg = document.getElementById('mensagem')
-const infoMensalidade = document.getElementById('infoMensalidade')
+const form = document.getElementById('formPagamento')
 
-let mensalidadeAtiva = null
+// =======================
+// Data padrão hoje
+// =======================
+dataPagamentoInput.value = new Date().toISOString().slice(0,10)
 
 // =======================
 // Carregar alunos ativos
 // =======================
 async function carregarAlunos() {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('alunos')
     .select('id, nome')
     .eq('ativo', true)
     .order('nome')
 
-  if (error) {
-    msg.innerText = 'Erro ao carregar alunos'
-    msg.style.color = 'red'
-    console.error(error)
-    return
-  }
-
   data.forEach(a => {
     const opt = document.createElement('option')
     opt.value = a.id
     opt.textContent = a.nome
-    selectAluno.appendChild(opt)
+    alunoSelect.appendChild(opt)
   })
 }
 
 carregarAlunos()
 
 // =======================
-// Buscar mensalidade ativa
+// Ao selecionar aluno
 // =======================
-selectAluno.addEventListener('change', async () => {
-  infoMensalidade.innerText = ''
-  mensalidadeAtiva = null
+alunoSelect.addEventListener('change', async () => {
 
-  const alunoId = selectAluno.value
-  if (!alunoId) return
+  mensalidadeSelect.innerHTML = `<option value="">Selecione a mensalidade</option>`
+  mensalidadeSelect.disabled = true
+  valorInput.value = ''
 
-  const { data, error } = await supabase
+  if (!alunoSelect.value) return
+
+  const { data } = await supabase
     .from('mensalidades')
-    .select('*')
-    .eq('aluno_id', alunoId)
-    .is('data_fim', null)
-    .single()
+    .select(`
+      id,
+      competencia,
+      valor,
+      dia_vencimento,
+      pagamentos(id)
+    `)
+    .eq('aluno_id', alunoSelect.value)
+    .order('competencia')
 
-  if (error || !data) {
-    infoMensalidade.innerText = '⚠️ Aluno sem mensalidade ativa'
-    infoMensalidade.style.color = 'red'
-    return
-  }
+  const abertas = data.filter(m => m.pagamentos.length === 0)
 
-  mensalidadeAtiva = data
-  infoMensalidade.innerText =
-    `Mensalidade ativa: R$ ${Number(data.valor).toFixed(2)} — vencimento dia ${data.dia_vencimento}`
-  infoMensalidade.style.color = 'green'
+  abertas.forEach(m => {
+
+    const comp = new Date(m.competencia)
+    const competenciaFormatada =
+      (comp.getMonth()+1).toString().padStart(2,'0') + '/' + comp.getFullYear()
+
+    const opt = document.createElement('option')
+    opt.value = m.id
+    opt.textContent = `${competenciaFormatada} | R$ ${Number(m.valor).toFixed(2)} | Venc. dia ${m.dia_vencimento}`
+    opt.dataset.valor = m.valor
+
+    mensalidadeSelect.appendChild(opt)
+  })
+
+  mensalidadeSelect.disabled = false
+})
+
+// =======================
+// Ao selecionar mensalidade
+// =======================
+mensalidadeSelect.addEventListener('change', () => {
+  const opt = mensalidadeSelect.selectedOptions[0]
+  valorInput.value = opt?.dataset.valor ?? ''
 })
 
 // =======================
@@ -117,45 +147,19 @@ selectAluno.addEventListener('change', async () => {
 // =======================
 form.addEventListener('submit', async (e) => {
   e.preventDefault()
-  msg.innerText = ''
 
-  if (!mensalidadeAtiva) {
-    msg.innerText = 'Este aluno não possui mensalidade ativa'
-    msg.style.color = 'red'
-    return
-  }
-
-  const alunoId = selectAluno.value
-  const competencia = document.getElementById('competencia').value
-  const forma = document.getElementById('forma').value
-
-  if (!alunoId || !competencia) {
-    msg.innerText = 'Preencha todos os campos'
-    msg.style.color = 'red'
-    return
-  }
-
-  // 🔒 Verifica pagamento duplicado
-  const { data: existente } = await supabase
-    .from('pagamentos')
-    .select('id')
-    .eq('mensalidade_id', mensalidadeAtiva.id)
-    .eq('competencia', competencia + '-01')
-    .maybeSingle()
-
-  if (existente) {
-    msg.innerText = 'Pagamento já registrado para esta competência'
+  if (!mensalidadeSelect.value) {
+    msg.innerText = 'Selecione uma mensalidade'
     msg.style.color = 'red'
     return
   }
 
   const pagamento = {
-    aluno_id: alunoId,
-    mensalidade_id: mensalidadeAtiva.id,
-    competencia: competencia + '-01',
-    valor_pago: mensalidadeAtiva.valor,
-    forma_pagamento: forma,
-    data_pagamento: new Date().toISOString()
+    aluno_id: alunoSelect.value,
+    mensalidade_id: mensalidadeSelect.value,
+    valor_pago: valorInput.value,
+    data_pagamento: dataPagamentoInput.value,
+    forma_pagamento: document.getElementById('forma').value
   }
 
   const { data, error } = await supabase
@@ -174,10 +178,8 @@ form.addEventListener('submit', async (e) => {
   msg.innerText = 'Pagamento registrado com sucesso!'
   msg.style.color = 'green'
   form.reset()
-  infoMensalidade.innerText = ''
-  mensalidadeAtiva = null
 
-  // 🧾 Abre recibo
+  // abre recibo
   window.open(`recibo.html?id=${data.id}`, '_blank')
 })
 </script>
