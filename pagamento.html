@@ -60,18 +60,33 @@ Data do Pagamento
 import { supabase } from './supabase.js'
 
 const alunoSelect = document.getElementById('aluno')
-const competenciaSelect = document.getElementById('competencia')
+const mensalidadeSelect = document.getElementById('mensalidade')
 const valorInput = document.getElementById('valor')
 const dataPagamentoInput = document.getElementById('dataPagamento')
 const msg = document.getElementById('mensagem')
 const form = document.getElementById('formPagamento')
 
-// data padrão hoje
+// data padrão
 dataPagamentoInput.value = new Date().toISOString().slice(0,10)
 
-// =======================
-// carregar alunos
-// =======================
+/* ========================
+ UTIL
+======================== */
+function gerarCompetencias(inicio, fim){
+  const lista = []
+  let atual = new Date(inicio)
+  const dataFim = new Date(fim)
+
+  while(atual <= dataFim){
+    lista.push(new Date(atual))
+    atual.setMonth(atual.getMonth() + 1)
+  }
+  return lista
+}
+
+/* ========================
+ CARREGAR ALUNOS
+======================== */
 async function carregarAlunos(){
   const { data } = await supabase
     .from('alunos')
@@ -88,130 +103,127 @@ async function carregarAlunos(){
 }
 carregarAlunos()
 
-// =======================
-// gerar competências
-// =======================
-function gerarCompetencias(inicio, fim){
-  const lista = []
-  let atual = new Date(inicio)
-  const dataFim = new Date(fim)
-
-  while(atual <= dataFim){
-    lista.push(new Date(atual))
-    atual.setMonth(atual.getMonth() + 1)
-  }
-  return lista
-}
-
-// =======================
-// ao selecionar aluno
-// =======================
+/* ========================
+ AO SELECIONAR ALUNO
+======================== */
 alunoSelect.addEventListener('change', async () => {
 
-  competenciaSelect.innerHTML = `<option value="">Selecione a competência</option>`
-  competenciaSelect.disabled = true
+  mensalidadeSelect.innerHTML =
+    `<option value="">Selecione a competência</option>`
+  mensalidadeSelect.disabled = true
   valorInput.value = ''
-  msg.innerText = ''
 
-  if(!alunoSelect.value) return
+  if (!alunoSelect.value) return
 
   const alunoId = alunoSelect.value
 
-  const { data: mensalidade } = await supabase
+  // contratos
+  const { data: mensalidades } = await supabase
     .from('mensalidades')
     .select('*')
     .eq('aluno_id', alunoId)
-    .maybeSingle()
 
-  if(!mensalidade){
-    msg.innerText = 'Aluno sem mensalidade cadastrada'
-    msg.style.color = 'red'
-    return
-  }
-
+  // pagamentos
   const { data: pagamentos } = await supabase
     .from('pagamentos')
-    .select('competencia')
+    .select('mensalidade_id, competencia')
     .eq('aluno_id', alunoId)
-    .eq('mensalidade_id', mensalidade.id_mensalidade)
 
-  const competencias = gerarCompetencias(
-    mensalidade.data_inicio,
-    mensalidade.data_fim
-  )
+  mensalidades.forEach(m => {
 
-  const abertas = competencias.filter(c => {
-    const compISO = c.toISOString().slice(0,7) + '-01'
-    return !pagamentos.some(p => p.competencia === compISO)
+    const competencias = gerarCompetencias(
+      m.data_inicio,
+      m.data_fim
+    )
+
+    competencias.forEach(c => {
+
+      const competenciaISO =
+        c.toISOString().slice(0,7) + '-01'
+
+      const vencimento = new Date(
+        c.getFullYear(),
+        c.getMonth(),
+        m.dia_vencimento
+      )
+
+      if (new Date() <= vencimento) return
+
+      const pago = pagamentos.some(p =>
+        p.mensalidade_id === m.id_mensalidade &&
+        p.competencia === competenciaISO
+      )
+
+      if (pago) return
+
+      const opt = document.createElement('option')
+      opt.value = `${m.id_mensalidade}|${competenciaISO}`
+      opt.textContent =
+        `${String(c.getMonth()+1).padStart(2,'0')}/${c.getFullYear()}
+         | R$ ${Number(m.valor).toFixed(2)}
+         | Venc. dia ${m.dia_vencimento}`
+
+      opt.dataset.valor = m.valor
+      mensalidadeSelect.appendChild(opt)
+    })
   })
 
-  abertas.forEach(c => {
-
-    const compISO = c.toISOString().slice(0,7) + '-01'
-    const compFmt =
-      String(c.getMonth()+1).padStart(2,'0') + '/' + c.getFullYear()
-
-    const opt = document.createElement('option')
-    opt.value = compISO
-    opt.textContent = `${compFmt} | Venc. dia ${mensalidade.dia_vencimento}`
-    opt.dataset.valor = mensalidade.valor
-    opt.dataset.mensalidade = mensalidade.id_mensalidade
-
-    competenciaSelect.appendChild(opt)
-  })
-
-  if(abertas.length === 0){
-    msg.innerText = 'Nenhuma competência em aberto'
-    msg.style.color = 'green'
-    return
-  }
-
-  competenciaSelect.disabled = false
+  mensalidadeSelect.disabled = false
 })
 
-// =======================
-// ao escolher competência
-// =======================
-competenciaSelect.addEventListener('change', () => {
-  const opt = competenciaSelect.selectedOptions[0]
+/* ========================
+ AO SELECIONAR COMPETÊNCIA
+======================== */
+mensalidadeSelect.addEventListener('change', () => {
+  const opt = mensalidadeSelect.selectedOptions[0]
   valorInput.value = opt?.dataset.valor ?? ''
 })
 
-// =======================
-// registrar pagamento
-// =======================
+/* ========================
+ REGISTRAR PAGAMENTO
+======================== */
 form.addEventListener('submit', async (e) => {
   e.preventDefault()
 
-  const opt = competenciaSelect.selectedOptions[0]
-  if(!opt) return
+  if (!mensalidadeSelect.value) {
+    msg.innerText = 'Selecione a mensalidade'
+    msg.style.color = 'red'
+    return
+  }
+
+  const [mensalidadeId, competencia] =
+    mensalidadeSelect.value.split('|')
 
   const pagamento = {
     aluno_id: alunoSelect.value,
-    mensalidade_id: opt.dataset.mensalidade,
-    competencia: opt.value,
+    mensalidade_id: mensalidadeId,
+    competencia: competencia,
     valor_pago: valorInput.value,
-    forma_pagamento: document.getElementById('forma').value,
-    data_pagamento: dataPagamentoInput.value
+    data_pagamento: dataPagamentoInput.value,
+    forma_pagamento: document.getElementById('forma').value
   }
 
-  const { error } = await supabase
+  const { error, data } = await supabase
     .from('pagamentos')
     .insert(pagamento)
+    .select()
+    .single()
 
-  if(error){
+  if (error) {
+    console.error(error)
     msg.innerText = 'Erro ao registrar pagamento'
     msg.style.color = 'red'
-    console.error(error)
     return
   }
 
   msg.innerText = 'Pagamento registrado com sucesso!'
   msg.style.color = 'green'
   form.reset()
-  competenciaSelect.disabled = true
+
+  window.open(`recibo.html?id=${data.id}`, '_blank')
 })
 </script>
-
+  
 </body>
 </html>
+
