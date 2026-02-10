@@ -1,124 +1,239 @@
 <!DOCTYPE html>
+<script type="module">
+import { protegerPagina } from './auth.js'
+protegerPagina()
+</script>
+
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Histórico do Aluno</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8" />
+<title>Financeiro do Aluno</title>
+<link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-<h1 id="nomeAluno">Aluno</h1>
+<h1>Financeiro do Aluno</h1>
 
-<section class="cards">
-  <div class="card">
-    <h3>Mensalidade</h3>
-    <p id="mensalidade">R$ --</p>
-  </div>
+<h2 id="nomeAluno"></h2>
 
-  <div class="card">
-    <h3>Total Pago</h3>
-    <p id="totalPago">R$ --</p>
-  </div>
-</section>
+<!-- =========================
+ CADASTRO DE MENSALIDADE
+========================= -->
 
-<h2>Histórico de Pagamentos</h2>
+<form id="formMensalidade" class="form">
+
+<label>
+Valor da Mensalidade
+<input type="number" step="0.01" id="valor" required>
+</label>
+
+<label>
+Dia do Vencimento
+<input type="number" id="vencimento" min="1" max="28" required>
+</label>
+
+<label>
+Início da Vigência
+<input type="month" id="inicio" required>
+</label>
+
+<label>
+Fim da Vigência
+<input type="month" id="fim" required>
+</label>
+
+<button type="submit">Gerar Mensalidades</button>
+
+</form>
+
+<p id="msg"></p>
+
+<hr>
+
+<!-- =========================
+ HISTÓRICO FINANCEIRO
+========================= -->
+
+<h2>Mensalidades Geradas</h2>
 
 <table>
 <thead>
-  <tr>
-    <th>Competência</th>
-    <th>Valor</th>
-    <th>Pago</th>
-    <th>Status</th>
-  </tr>
+<tr>
+<th>Competência</th>
+<th>Valor</th>
+<th>Vencimento</th>
+<th>Status</th>
+</tr>
 </thead>
-  <tbody id="tabelaPagamentos"></tbody>
+<tbody id="tabelaMensalidades"></tbody>
 </table>
 
 <script type="module">
 import { supabase } from './supabase.js'
-import { protegerPagina } from './auth.js'
-
-protegerPagina()
 
 const params = new URLSearchParams(window.location.search)
 const alunoId = params.get('id')
 
+const nomeAluno = document.getElementById('nomeAluno')
+const tabela = document.getElementById('tabelaMensalidades')
+const msg = document.getElementById('msg')
+
+/* ========================
+ CARREGAR DADOS DO ALUNO
+======================== */
+
 async function carregarAluno() {
-  const { data } = await supabase
-    .from('alunos')
-    .select('*')
-    .eq('id', alunoId)
-    .single()
 
-  document.getElementById('nomeAluno').innerText = data.nome
-  document.getElementById('mensalidade').innerText =
-    `R$ ${Number(data.valor_mensalidade).toFixed(2)}`
+const { data } = await supabase
+.from('alunos')
+.select('nome')
+.eq('id', alunoId)
+.single()
+
+nomeAluno.innerText = data.nome
+
 }
-
-async function carregarPagamentos() {
-  const { data } = await supabase
-    .from('vw_status_pagamentos')
-    .select('*')
-    .eq('aluno_id', alunoId)
-
-  const tbody = document.getElementById('tabelaPagamentos')
-  tbody.innerHTML = ''
-
-  let total = 0
-
-  data.forEach(p => {
-    total += Number(p.total_pago)
-
-    const mes = new Date(p.competencia)
-      .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-
-    let cor = 'gray'
-    if (p.status === 'PAGO') cor = 'green'
-    if (p.status === 'EM ABERTO') cor = 'red'
-    if (p.status === 'A VENCER') cor = 'orange'
-
-    tbody.innerHTML += `
-      <tr>
-        <td>${mes}</td>
-        <td>R$ ${Number(p.valor_mensalidade).toFixed(2)}</td>
-        <td>R$ ${Number(p.total_pago).toFixed(2)}</td>
-        <td style="font-weight:bold;color:${cor}">
-          ${p.status}
-        </td>
-      </tr>
-    `
-  })
-
-  document.getElementById('totalPago').innerText =
-    `R$ ${total.toFixed(2)}`
-}
-
-  const tbody = document.getElementById('tabelaPagamentos')
-  tbody.innerHTML = ''
-
-  let total = 0
-
-  data.forEach(p => {
-    total += Number(p.valor_pago)
-
-    const mes = new Date(p.competencia)
-      .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-
-    tbody.innerHTML += `
-      <tr>
-        <td>${mes}</td>
-        <td>R$ ${Number(p.valor_pago).toFixed(2)}</td>
-        <td>${p.forma_pagamento}</td>
-      </tr>
-    `
-  })
-
-  document.getElementById('totalPago').innerText =
-    `R$ ${total.toFixed(2)}`
 
 carregarAluno()
-carregarPagamentos()
+
+/* ========================
+ GERAR MENSALIDADES
+======================== */
+
+document.getElementById('formMensalidade')
+.addEventListener('submit', async (e) => {
+
+e.preventDefault()
+
+const valor = Number(document.getElementById('valor').value)
+const dia = Number(document.getElementById('vencimento').value)
+
+const inicio = document.getElementById('inicio').value
+const fim = document.getElementById('fim').value
+
+if(inicio > fim){
+msg.innerText = "Fim da vigência não pode ser menor que início"
+msg.style.color = 'red'
+return
+}
+
+let dataAtual = new Date(inicio + "-01")
+const dataFim = new Date(fim + "-01")
+
+const mensalidades = []
+
+while(dataAtual <= dataFim){
+
+mensalidades.push({
+aluno_id: alunoId,
+competencia: dataAtual.toISOString().slice(0,10),
+valor: valor,
+dia_vencimento: dia
+})
+
+dataAtual.setMonth(dataAtual.getMonth() + 1)
+}
+
+/* evita duplicar competência */
+
+for(const m of mensalidades){
+
+const { data: existe } = await supabase
+.from('mensalidades')
+.select('id')
+.eq('aluno_id', alunoId)
+.eq('competencia', m.competencia)
+.maybeSingle()
+
+if(!existe){
+
+await supabase
+.from('mensalidades')
+.insert(m)
+
+}
+
+}
+
+msg.innerText = "Mensalidades geradas com sucesso"
+msg.style.color = 'green'
+
+carregarMensalidades()
+
+})
+
+/* ========================
+ STATUS AUTOMÁTICO
+======================== */
+
+function calcularStatus(m){
+
+const hoje = new Date()
+
+const comp = new Date(m.competencia)
+const vencimento = new Date(comp.getFullYear(), comp.getMonth(), m.dia_vencimento)
+
+if(m.pago){
+return "Pago"
+}
+
+if(hoje > vencimento){
+return "Vencido"
+}
+
+return "Em aberto"
+
+}
+
+/* ========================
+ LISTAR MENSALIDADES
+======================== */
+
+async function carregarMensalidades(){
+
+const { data } = await supabase
+.from('mensalidades')
+.select(`
+id,
+competencia,
+valor,
+dia_vencimento,
+pagamentos(id)
+`)
+.eq('aluno_id', alunoId)
+.order('competencia')
+
+tabela.innerHTML = ''
+
+data.forEach(m => {
+
+const pago = m.pagamentos.length > 0
+
+const status = pago
+? "Pago"
+: calcularStatus({...m, pago:false})
+
+const comp = new Date(m.competencia)
+const competenciaFormatada =
+(comp.getMonth()+1).toString().padStart(2,'0')
++ "/" + comp.getFullYear()
+
+tabela.innerHTML += `
+<tr>
+<td>${competenciaFormatada}</td>
+<td>R$ ${Number(m.valor).toFixed(2)}</td>
+<td>Dia ${m.dia_vencimento}</td>
+<td>${status}</td>
+</tr>
+`
+
+})
+
+}
+
+carregarMensalidades()
+
 </script>
 
 </body>
