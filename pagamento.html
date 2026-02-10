@@ -157,7 +157,7 @@ alunoSelect.addEventListener('change', async () => {
       if (pago) return
 
       const opt = document.createElement('option')
-      opt.value = `${m.id_mensalidade}|${competenciaISO}`
+      opt.value = `${m.id}|${competenciaISO}`
       opt.textContent =
         `${String(c.getMonth()+1).padStart(2,'0')}/${c.getFullYear()}
          | R$ ${Number(m.valor).toFixed(2)}
@@ -226,5 +226,6 @@ form.addEventListener('submit', async (e) => {
   
 </body>
 </html>
+
 
 
