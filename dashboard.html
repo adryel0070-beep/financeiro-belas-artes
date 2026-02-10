@@ -6,34 +6,163 @@ protegerPagina()
 
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Painel Administrativo</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8" />
+<title>Dashboard Financeiro</title>
+<link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
 <h1>Painel Administrativo</h1>
 
-<div class="painel">
+<section class="cards">
+  <div class="card">
+    <h3>Alunos Ativos</h3>
+    <p id="totalAlunos">--</p>
+  </div>
 
-  <a href="alunos.html" class="card-painel">Cadastrar Aluno</a>
+  <div class="card">
+    <h3>Inadimplentes</h3>
+    <p id="inadimplentes">--</p>
+  </div>
 
-  <a href="pagamento.html" class="card-painel">Registrar Pagamento</a>
+  <div class="card">
+    <h3>Arrecadado no Mês</h3>
+    <p id="arrecadado">R$ --</p>
+  </div>
+</section>
 
-  <a href="historico.html" class="card-painel">Histórico de Pagamentos</a>
+<h2>Mensalidades Vencidas</h2>
 
-  <button onclick="logout()" class="card-painel sair">Sair</button>
-
-</div>
+<table>
+<thead>
+<tr>
+<th>Aluno</th>
+<th>Competência</th>
+<th>Valor</th>
+<th>Vencimento</th>
+<th>Dias em Atraso</th>
+</tr>
+</thead>
+<tbody id="tabelaInadimplentes"></tbody>
+</table>
 
 <script type="module">
 import { supabase } from './supabase.js'
 
-window.logout = async () => {
-  await supabase.auth.signOut()
-  window.location.href = 'login.html'
+const hoje = new Date()
+
+/* ========================
+ TOTAL DE ALUNOS ATIVOS
+======================== */
+
+async function totalAlunosAtivos() {
+  const { count } = await supabase
+    .from('alunos')
+    .select('*', { count: 'exact', head: true })
+    .eq('ativo', true)
+
+  document.getElementById('totalAlunos').innerText = count ?? 0
 }
+
+/* ========================
+ MENSALIDADES VENCIDAS
+======================== */
+
+async function mensalidadesVencidas() {
+
+  const { data } = await supabase
+    .from('mensalidades')
+    .select(`
+      id,
+      competencia,
+      valor,
+      dia_vencimento,
+      alunos(nome),
+      pagamentos(id)
+    `)
+
+  const vencidas = data.filter(m => {
+
+    if (m.pagamentos.length > 0) return false
+
+    const comp = new Date(m.competencia)
+    const vencimento = new Date(
+      comp.getFullYear(),
+      comp.getMonth(),
+      m.dia_vencimento
+    )
+
+    return hoje > vencimento
+  })
+
+  document.getElementById('inadimplentes').innerText = vencidas.length
+
+  const tbody = document.getElementById('tabelaInadimplentes')
+  tbody.innerHTML = ''
+
+  vencidas.forEach(m => {
+
+    const comp = new Date(m.competencia)
+    const venc = new Date(
+      comp.getFullYear(),
+      comp.getMonth(),
+      m.dia_vencimento
+    )
+
+    const diasAtraso = Math.floor(
+      (hoje - venc) / (1000 * 60 * 60 * 24)
+    )
+
+    const competenciaFormatada =
+      (comp.getMonth()+1).toString().padStart(2,'0')
+      + '/' + comp.getFullYear()
+
+    tbody.innerHTML += `
+      <tr>
+        <td>${m.alunos.nome}</td>
+        <td>${competenciaFormatada}</td>
+        <td>R$ ${Number(m.valor).toFixed(2)}</td>
+        <td>${venc.toLocaleDateString()}</td>
+        <td>${diasAtraso}</td>
+      </tr>
+    `
+  })
+}
+
+/* ========================
+ ARRECADADO NO MÊS
+======================== */
+
+async function arrecadadoMes() {
+
+  const inicioMes = new Date()
+  inicioMes.setDate(1)
+
+  const { data } = await supabase
+    .from('pagamentos')
+    .select('valor_pago')
+    .gte('data_pagamento', inicioMes.toISOString().slice(0,10))
+
+  const total = data.reduce(
+    (s, p) => s + Number(p.valor_pago), 0
+  )
+
+  document.getElementById('arrecadado').innerText =
+    `R$ ${total.toFixed(2)}`
+}
+
+/* ========================
+ CARREGAR DASHBOARD
+======================== */
+
+async function carregarDashboard() {
+  await totalAlunosAtivos()
+  await mensalidadesVencidas()
+  await arrecadadoMes()
+}
+
+carregarDashboard()
 </script>
 
 </body>
