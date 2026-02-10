@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<script type="module">
-import { protegerPagina } from './auth.js'
-protegerPagina()
-</script>
-
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
 <title>Financeiro do Aluno</title>
 <link rel="stylesheet" href="style.css">
+
+<script type="module">
+import { protegerPagina } from './auth.js'
+protegerPagina()
+</script>
 </head>
 
 <body>
@@ -17,35 +17,36 @@ protegerPagina()
 <h2 id="nomeAluno"></h2>
 
 <!-- =========================
- CADASTRO DE MENSALIDADES
+ CADASTRO DE MENSALIDADE (CONTRATO)
 ========================= -->
 
 <form id="formMensalidade" class="form">
 
-  <label>
-    Valor da Mensalidade
-    <input type="number" step="0.01" id="valor" required>
-  </label>
+<label>
+Valor da Mensalidade
+<input type="number" step="0.01" id="valor" required>
+</label>
 
-  <label>
-    Dia do Vencimento
-    <input type="number" id="vencimento" min="1" max="28" required>
-  </label>
+<label>
+Dia do Vencimento
+<input type="number" id="vencimento" min="1" max="28" required>
+</label>
 
-  <label>
-    Início da Vigência
-    <input type="month" id="inicio" required>
-  </label>
+<label>
+Início da Vigência
+<input type="month" id="inicio" required>
+</label>
 
-  <label>
-    Fim da Vigência
-    <input type="month" id="fim" required>
-  </label>
+<label>
+Fim da Vigência
+<input type="month" id="fim" required>
+</label>
 
-  <button type="submit">Gerar Mensalidades</button>
+<button type="submit">Salvar Mensalidade</button>
+
 </form>
 
-<p id="msg" class="mensagem"></p>
+<p id="msg"></p>
 
 <hr>
 
@@ -53,7 +54,7 @@ protegerPagina()
  HISTÓRICO FINANCEIRO
 ========================= -->
 
-<h2>Mensalidades Geradas</h2>
+<h2>Histórico Financeiro</h2>
 
 <table>
 <thead>
@@ -64,7 +65,7 @@ protegerPagina()
 <th>Status</th>
 </tr>
 </thead>
-<tbody id="tabelaMensalidades"></tbody>
+<tbody id="tabela"></tbody>
 </table>
 
 <script type="module">
@@ -74,27 +75,27 @@ const params = new URLSearchParams(window.location.search)
 const alunoId = params.get('id')
 
 const nomeAluno = document.getElementById('nomeAluno')
-const tabela = document.getElementById('tabelaMensalidades')
+const tabela = document.getElementById('tabela')
 const msg = document.getElementById('msg')
 
 /* ========================
  CARREGAR ALUNO
 ======================== */
 
-async function carregarAluno() {
-  const { data, error } = await supabase
+async function carregarAluno(){
+  const { data } = await supabase
     .from('alunos')
     .select('nome')
     .eq('id', alunoId)
     .single()
 
-  if (!error) nomeAluno.innerText = data.nome
+  nomeAluno.innerText = data.nome
 }
 
 carregarAluno()
 
 /* ========================
- GERAR MENSALIDADES
+ SALVAR MENSALIDADE (REGRA)
 ======================== */
 
 document.getElementById('formMensalidade')
@@ -108,130 +109,129 @@ document.getElementById('formMensalidade')
   const inicio = document.getElementById('inicio').value
   const fim = document.getElementById('fim').value
 
-  if (inicio > fim) {
+  if(inicio > fim){
     msg.innerText = 'Fim da vigência não pode ser menor que o início'
     msg.style.color = 'red'
     return
   }
 
-  let dataAtual = new Date(inicio + '-01')
-  const dataFim = new Date(fim + '-01')
-
-  const novasMensalidades = []
-
-  while (dataAtual <= dataFim) {
-
-    novasMensalidades.push({
-      aluno_id: alunoId,
-      competencia: dataAtual.toISOString().slice(0,10),
-      valor: valor,
-      dia_vencimento: dia
-    })
-
-    dataAtual.setMonth(dataAtual.getMonth() + 1)
-  }
-
-  // 🔒 Remove competências já existentes
-  const { data: existentes } = await supabase
-    .from('mensalidades')
-    .select('competencia')
-    .eq('aluno_id', alunoId)
-
-  const competenciasExistentes = existentes.map(m => m.competencia)
-
-  const paraInserir = novasMensalidades.filter(
-    m => !competenciasExistentes.includes(m.competencia)
-  )
-
-  if (paraInserir.length === 0) {
-    msg.innerText = 'Nenhuma nova mensalidade para gerar'
-    msg.style.color = 'orange'
-    return
-  }
-
   const { error } = await supabase
     .from('mensalidades')
-    .insert(paraInserir)
+    .insert({
+      aluno_id: alunoId,
+      valor,
+      dia_vencimento: dia,
+      data_inicio: inicio + '-01',
+      data_fim: fim + '-01'
+    })
 
-  if (error) {
-    msg.innerText = 'Erro ao gerar mensalidades'
+  if(error){
+    msg.innerText = 'Erro ao salvar mensalidade'
     msg.style.color = 'red'
     console.error(error)
     return
   }
 
-  msg.innerText = 'Mensalidades geradas com sucesso!'
+  msg.innerText = 'Mensalidade cadastrada com sucesso'
   msg.style.color = 'green'
 
-  carregarMensalidades()
+  carregarHistorico()
 })
+
+/* ========================
+ GERAR COMPETÊNCIAS
+======================== */
+
+function gerarCompetencias(inicio, fim){
+  const lista = []
+  let atual = new Date(inicio)
+  const dataFim = new Date(fim)
+
+  while(atual <= dataFim){
+    lista.push(new Date(atual))
+    atual.setMonth(atual.getMonth() + 1)
+  }
+
+  return lista
+}
 
 /* ========================
  STATUS AUTOMÁTICO
 ======================== */
 
-function calcularStatus(m) {
-
-  if (m.pagamentos.length > 0) return 'Pago'
+function calcularStatus(comp, diaVencimento, pago){
+  if(pago) return 'Pago'
 
   const hoje = new Date()
-  const comp = new Date(m.competencia)
-  const venc = new Date(
+  const vencimento = new Date(
     comp.getFullYear(),
     comp.getMonth(),
-    m.dia_vencimento
+    diaVencimento
   )
 
-  if (hoje > venc) return 'Vencido'
-
+  if(hoje > vencimento) return 'Vencido'
   return 'Em aberto'
 }
 
 /* ========================
- LISTAR MENSALIDADES
+ HISTÓRICO FINANCEIRO
 ======================== */
 
-async function carregarMensalidades() {
-
-  const { data, error } = await supabase
-    .from('mensalidades')
-    .select(`
-      competencia,
-      valor,
-      dia_vencimento,
-      pagamentos(id)
-    `)
-    .eq('aluno_id', alunoId)
-    .order('competencia')
-
-  if (error) {
-    console.error(error)
-    return
-  }
+async function carregarHistorico(){
 
   tabela.innerHTML = ''
 
-  data.forEach(m => {
+  const { data: mensalidades } = await supabase
+    .from('mensalidades')
+    .select('*')
+    .eq('aluno_id', alunoId)
 
-    const comp = new Date(m.competencia)
-    const competenciaFormatada =
-      String(comp.getMonth()+1).padStart(2,'0') +
-      '/' + comp.getFullYear()
+  const { data: pagamentos } = await supabase
+    .from('pagamentos')
+    .select('*')
+    .eq('aluno_id', alunoId)
 
-    const status = calcularStatus(m)
+  mensalidades.forEach(m => {
 
-    tabela.innerHTML += `
-      <tr>
-        <td>${competenciaFormatada}</td>
-        <td>R$ ${Number(m.valor).toFixed(2)}</td>
-        <td>Dia ${m.dia_vencimento}</td>
-        <td>${status}</td>
-      </tr>
-    `
+    const competencias = gerarCompetencias(
+      m.data_inicio,
+      m.data_fim
+    )
+
+    competencias.forEach(comp => {
+
+      const competenciaISO =
+        comp.toISOString().slice(0,7) + '-01'
+
+      const pago = pagamentos.find(p =>
+        p.mensalidade_id === m.id_mensalidade &&
+        p.competencia === competenciaISO
+      )
+
+      const status = calcularStatus(
+        comp,
+        m.dia_vencimento,
+        !!pago
+      )
+
+      const competenciaFmt =
+        String(comp.getMonth()+1).padStart(2,'0')
+        + '/' + comp.getFullYear()
+
+      tabela.innerHTML += `
+        <tr>
+          <td>${competenciaFmt}</td>
+          <td>R$ ${Number(m.valor).toFixed(2)}</td>
+          <td>Dia ${m.dia_vencimento}</td>
+          <td>${status}</td>
+        </tr>
+      `
+    })
   })
 }
 
-carregarMensalidades()
+carregarHistorico()
+
 </script>
 
 </body>
