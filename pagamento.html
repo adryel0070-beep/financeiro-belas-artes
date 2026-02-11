@@ -72,15 +72,25 @@ dataPagamentoInput.value = new Date().toISOString().slice(0,10)
 /* ========================
  UTIL
 ======================== */
-function gerarCompetencias(inicio, fim){
-  const lista = []
-  let atual = new Date(inicio)
-  const dataFim = new Date(fim)
+function criarDataSegura(ano, mes){
+  return new Date(ano, mes, 1, 12)
+}
 
-  while(atual <= dataFim){
+function gerarCompetencias(inicio, fim){
+
+  const [anoIni, mesIni] = inicio.split('-').map(Number)
+  const [anoFim, mesFim] = fim.split('-').map(Number)
+
+  let atual = criarDataSegura(anoIni, mesIni - 1)
+  const limite = criarDataSegura(anoFim, mesFim - 1)
+
+  const lista = []
+
+  while(atual <= limite){
     lista.push(new Date(atual))
     atual.setMonth(atual.getMonth() + 1)
   }
+
   return lista
 }
 
@@ -226,6 +236,7 @@ form.addEventListener('submit', async (e) => {
   
 </body>
 </html>
+
 
 
 
