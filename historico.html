@@ -117,7 +117,12 @@ selectAluno.addEventListener('change', async () => {
     `
     return
   }
+function formatarCompetencia(dataISO) {
+  if (!dataISO) return '-'
 
+  const [ano, mes] = dataISO.split('-')
+  return mes.padStart(2,'0') + '/' + ano
+}
   data.forEach(p => {
     const statusClass = p.status === 'PAGO' ? 'status-pago' : 'status-aberto'
     const dataPagamento = p.data_pagamento
@@ -130,7 +135,7 @@ selectAluno.addEventListener('change', async () => {
 
     tbody.innerHTML += `
       <tr>
-        <td>${new Date(p.competencia).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</td>
+        <td>${formatarCompetencia(p.competencia)}</td>
         <td>R$ ${Number(p.valor_pago ?? p.valor_mensalidade).toFixed(2)}</td>
         <td>${p.forma_pagamento ?? '-'}</td>
         <td>${dataPagamento}</td>
@@ -144,3 +149,4 @@ selectAluno.addEventListener('change', async () => {
 
 </body>
 </html>
+
