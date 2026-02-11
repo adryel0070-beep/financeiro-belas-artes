@@ -121,20 +121,27 @@ async function carregarDashboard() {
 
   // Arrecadado no mês
  // Arrecadado no mês
-const inicioMes = new Date()
-inicioMes.setDate(1)
+// Arrecadado no mês
 
-const fimMes = new Date(
-  inicioMes.getFullYear(),
-  inicioMes.getMonth() + 1,
+const hoje = new Date()
+
+const primeiroDia = new Date(
+  hoje.getFullYear(),
+  hoje.getMonth(),
+  1
+)
+
+const ultimoDia = new Date(
+  hoje.getFullYear(),
+  hoje.getMonth() + 1,
   0
 )
 
 const { data: pagamentos, error } = await supabase
   .from('pagamentos')
   .select('valor_pago')
-  .gte('competencia', inicioMes.toISOString().slice(0,10))
-  .lte('competencia', fimMes.toISOString().slice(0,10))
+  .gte('competencia', primeiroDia.toISOString().slice(0,10))
+  .lte('competencia', ultimoDia.toISOString().slice(0,10))
 
 if (error) {
   console.error(error)
@@ -142,16 +149,15 @@ if (error) {
 }
 
 const total = (pagamentos || []).reduce(
-  (s, p) => s + Number(p.valor_pago), 0
+  (s, p) => s + Number(p.valor_pago),
+  0
 )
 
 document.getElementById('arrecadado').innerText =
   `R$ ${total.toFixed(2)}`
-}
 
 carregarDashboard()
 </script>
 
 </body>
 </html>
-
