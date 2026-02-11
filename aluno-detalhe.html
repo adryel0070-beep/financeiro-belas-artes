@@ -172,25 +172,6 @@ document.getElementById('formMensalidade')
 })
 
 /* ========================
- STATUS AUTOMÁTICO
-======================== */
-
-function calcularStatus(comp, diaVencimento, pago){
-  if(pago) return 'Pago'
-
-  const hoje = new Date()
-
-  const vencimento = new Date(
-    comp.getFullYear(),
-    comp.getMonth(),
-    diaVencimento
-  )
-
-  if(hoje > vencimento) return 'Vencido'
-  return 'Em aberto'
-}
-
-/* ========================
  HISTÓRICO FINANCEIRO
 ======================== */
 
@@ -248,5 +229,6 @@ carregarHistorico()
 
 </body>
 </html>
+
 
 
