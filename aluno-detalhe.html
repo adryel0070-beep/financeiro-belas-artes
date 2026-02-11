@@ -61,8 +61,9 @@ Fim da Vigência
 <tr>
 <th>Competência</th>
 <th>Valor</th>
-<th>Vencimento</th>
-<th>Status</th>
+<th>Dia do Vencimento</th>
+</tr>
+</thead>
 </tr>
 </thead>
 <tbody id="tabela"></tbody>
@@ -202,14 +203,18 @@ async function carregarHistorico(){
     .select('*')
     .eq('aluno_id', alunoId)
 
-  const { data: pagamentos } = await supabase
-    .from('pagamentos')
-    .select('*')
-    .eq('aluno_id', alunoId)
+  if(!mensalidades || mensalidades.length === 0){
+    tabela.innerHTML = `
+      <tr>
+        <td colspan="3" style="text-align:center;">
+          Nenhuma mensalidade cadastrada
+        </td>
+      </tr>
+    `
+    return
+  }
 
-  if(!mensalidades) return
-
-  // ordenar por data_inicio
+  // ordenar contratos por início
   mensalidades.sort((a,b) =>
     new Date(a.data_inicio) - new Date(b.data_inicio)
   )
@@ -223,28 +228,15 @@ async function carregarHistorico(){
 
     competencias.forEach(comp => {
 
-      const competenciaISO =
-        comp.getFullYear() + '-' +
-        String(comp.getMonth()+1).padStart(2,'0') +
-        '-01'
-
-      const pago = pagamentos?.find(p =>
-        p.mensalidade_id === m.id_mensalidade &&
-        p.competencia === competenciaISO
-      )
-
-      const status = calcularStatus(
-        comp,
-        m.dia_vencimento,
-        !!pago
-      )
+      const competenciaFmt =
+        String(comp.getMonth()+1).padStart(2,'0')
+        + '/' + comp.getFullYear()
 
       tabela.innerHTML += `
         <tr>
-          <td>${formatarCompetencia(comp)}</td>
+          <td>${competenciaFmt}</td>
           <td>R$ ${Number(m.valor).toFixed(2)}</td>
           <td>Dia ${m.dia_vencimento}</td>
-          <td>${status}</td>
         </tr>
       `
     })
@@ -256,4 +248,5 @@ carregarHistorico()
 
 </body>
 </html>
+
 
