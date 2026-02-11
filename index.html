@@ -124,42 +124,78 @@ async function carregarDashboard() {
  // Arrecadado no mês
 // Arrecadado no mês
 
-const hoje = new Date()
+async function arrecadadoMes() {
 
-const primeiroDia = new Date(
-  hoje.getFullYear(),
-  hoje.getMonth(),
-  1
-)
+  const competenciaSelecionada =
+    document.getElementById('filtroCompetencia').value
 
-const ultimoDia = new Date(
-  hoje.getFullYear(),
-  hoje.getMonth() + 1,
-  0
-)
+  if (!competenciaSelecionada) return
 
-const { data: pagamentos, error } = await supabase
-  .from('pagamentos')
-  .select('valor_pago')
-  .gte('competencia', primeiroDia.toISOString().slice(0,10))
-  .lte('competencia', ultimoDia.toISOString().slice(0,10))
+  const primeiroDia = competenciaSelecionada + '-01'
 
-if (error) {
-  console.error(error)
-  return
+  const ano = Number(competenciaSelecionada.split('-')[0])
+  const mes = Number(competenciaSelecionada.split('-')[1])
+
+  const ultimoDia = new Date(ano, mes, 0)
+    .toISOString()
+    .slice(0,10)
+
+  const { data: pagamentos, error } = await supabase
+    .from('pagamentos')
+    .select('valor_pago')
+    .gte('competencia', primeiroDia)
+    .lte('competencia', ultimoDia)
+
+  if (error) {
+    console.error(error)
+    return
+  }
+
+  const total = (pagamentos || []).reduce(
+    (s,p) => s + Number(p.valor_pago),
+    0
+  )
+
+  document.getElementById('arrecadado').innerText =
+    `R$ ${total.toFixed(2)}`
 }
 
-const total = (pagamentos || []).reduce(
-  (s, p) => s + Number(p.valor_pago),
-  0
-)
+async function carregarDashboard() {
 
-document.getElementById('arrecadado').innerText =
-  `R$ ${total.toFixed(2)}`
+  // Define mês atual no input
+  const hoje = new Date()
+  const mesAtual =
+    hoje.getFullYear() + '-' +
+    String(hoje.getMonth()+1).padStart(2,'0')
 
+  document.getElementById('filtroCompetencia').value = mesAtual
+
+  // Total alunos
+  const { count: totalAlunos } = await supabase
+    .from('alunos')
+    .select('*', { count: 'exact', head: true })
+    .eq('ativo', true)
+
+  document.getElementById('totalAlunos').innerText = totalAlunos ?? 0
+
+  // Inadimplentes
+  const { data: inadimplentes } = await supabase
+    .from('vw_inadimplentes')
+    .select('*')
+
+  document.getElementById('inadimplentes').innerText =
+    inadimplentes?.length ?? 0
+
+  // 🔥 Arrecadado baseado no filtro
+  await arrecadadoMes()
+}
+  document
+  .getElementById('filtroCompetencia')
+  .addEventListener('change', arrecadadoMes)
+
+// 👇 CHAMADA FINAL
 carregarDashboard()
 </script>
 
 </body>
 </html>
-
