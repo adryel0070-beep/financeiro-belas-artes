@@ -112,6 +112,10 @@ async function arrecadadoMes(){
  INADIMPLÊNCIA REAL
 ======================== */
 
+/* ========================
+ INADIMPLÊNCIA REAL
+======================== */
+
 async function inadimplentes(){
 
   const { data: mensalidades } = await supabase
@@ -137,13 +141,12 @@ async function inadimplentes(){
 
   mensalidades.forEach(m => {
 
-const fimContrato = m.data_fim || hoje
+    const fimContrato = m.data_fim || hoje
 
-const competencias = gerarCompetencias(
-  m.data_inicio,
-  fimContrato
-)
-)
+    const competencias = gerarCompetencias(
+      m.data_inicio,
+      fimContrato
+    )
 
     competencias.forEach(c => {
 
@@ -214,4 +217,5 @@ carregarDashboard()
 
 </body>
 </html>
+
 
