@@ -14,7 +14,8 @@ protegerPagina()
 <body>
 
 <h1>Painel Administrativo</h1>
-
+<label>Competência:</label>
+<input type="month" id="filtroCompetencia">
 <section class="cards">
   <div class="card">
     <h3>Alunos Ativos</h3>
@@ -87,25 +88,26 @@ async function totalAlunosAtivos(){
 
 async function arrecadadoMes(){
 
-  const inicioMes = new Date()
-  inicioMes.setDate(1)
+  const competenciaSelecionada =
+    document.getElementById('filtroCompetencia').value
 
-  const compInicio =
-    inicioMes.toISOString().slice(0,7) + '-01'
+  if(!competenciaSelecionada) return
+
+  const compInicio = competenciaSelecionada + '-01'
 
   const { data } = await supabase
     .from('pagamentos')
     .select('valor_pago')
     .eq('competencia', compInicio)
 
-  const total = data.reduce(
+  const total = (data || []).reduce(
     (s,p) => s + Number(p.valor_pago), 0
   )
 
   document.getElementById('arrecadado').innerText =
     `R$ ${total.toFixed(2)}`
 }
-
+  
 /* ========================
  INADIMPLÊNCIA REAL
 ======================== */
@@ -135,10 +137,13 @@ async function inadimplentes(){
 
   mensalidades.forEach(m => {
 
-    const competencias = gerarCompetencias(
-      m.data_inicio,
-      m.data_fim
-    )
+const fimContrato = m.data_fim || hoje
+
+const competencias = gerarCompetencias(
+  m.data_inicio,
+  fimContrato
+)
+)
 
     competencias.forEach(c => {
 
@@ -192,12 +197,21 @@ async function inadimplentes(){
 
 async function carregarDashboard(){
   await totalAlunosAtivos()
+  const hoje = new Date()
+const mesAtual =
+  hoje.getFullYear() + '-' +
+  String(hoje.getMonth()+1).padStart(2,'0')
+
+document.getElementById('filtroCompetencia').value = mesAtual
   await arrecadadoMes()
   await inadimplentes()
 }
-
+document
+  .getElementById('filtroCompetencia')
+  .addEventListener('change', arrecadadoMes)
 carregarDashboard()
 </script>
 
 </body>
 </html>
+
