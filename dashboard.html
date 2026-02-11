@@ -118,10 +118,10 @@ async function arrecadadoMes(){
 
 async function inadimplentes(){
 
-  const { data: mensalidades } = await supabase
+  const { data: mensalidades, error: erroMensal } = await supabase
     .from('mensalidades')
     .select(`
-      id_mensalidade,
+      id,
       aluno_id,
       valor,
       dia_vencimento,
@@ -130,9 +130,14 @@ async function inadimplentes(){
       alunos(nome)
     `)
 
-  const { data: pagamentos } = await supabase
+  const { data: pagamentos, error: erroPag } = await supabase
     .from('pagamentos')
     .select('mensalidade_id, competencia')
+
+  if (erroMensal || erroPag) {
+    console.error(erroMensal || erroPag)
+    return
+  }
 
   const tbody = document.getElementById('tabelaInadimplentes')
   tbody.innerHTML = ''
@@ -162,7 +167,7 @@ async function inadimplentes(){
       if (hoje <= vencimento) return
 
       const pago = pagamentos.some(p =>
-        p.mensalidade_id === m.id_mensalidade &&
+        p.mensalidade_id === m.id &&
         p.competencia === competenciaISO
       )
 
@@ -180,7 +185,7 @@ async function inadimplentes(){
 
       tbody.innerHTML += `
         <tr>
-          <td>${m.alunos.nome}</td>
+          <td>${m.alunos?.nome ?? 'Sem nome'}</td>
           <td>${competenciaFmt}</td>
           <td>R$ ${Number(m.valor).toFixed(2)}</td>
           <td>${vencimento.toLocaleDateString()}</td>
@@ -217,5 +222,6 @@ carregarDashboard()
 
 </body>
 </html>
+
 
 
