@@ -79,6 +79,37 @@ const tabela = document.getElementById('tabela')
 const msg = document.getElementById('msg')
 
 /* ========================
+ FUNÇÕES SEGURAS DE DATA
+======================== */
+
+function criarDataSegura(ano, mes){
+  return new Date(ano, mes, 1, 12) // meio-dia evita bug de fuso
+}
+
+function gerarCompetencias(inicio, fim){
+  const [anoIni, mesIni] = inicio.split('-').map(Number)
+  const [anoFim, mesFim] = fim.split('-').map(Number)
+
+  let atual = criarDataSegura(anoIni, mesIni - 1)
+  const limite = criarDataSegura(anoFim, mesFim - 1)
+
+  const lista = []
+
+  while(atual <= limite){
+    lista.push(new Date(atual))
+    atual.setMonth(atual.getMonth() + 1)
+  }
+
+  return lista
+}
+
+function formatarCompetencia(date){
+  const mes = String(date.getMonth()+1).padStart(2,'0')
+  const ano = date.getFullYear()
+  return `${mes}/${ano}`
+}
+
+/* ========================
  CARREGAR ALUNO
 ======================== */
 
@@ -89,13 +120,13 @@ async function carregarAluno(){
     .eq('id', alunoId)
     .single()
 
-  nomeAluno.innerText = data.nome
+  if(data) nomeAluno.innerText = data.nome
 }
 
 carregarAluno()
 
 /* ========================
- SALVAR MENSALIDADE (REGRA)
+ SALVAR MENSALIDADE
 ======================== */
 
 document.getElementById('formMensalidade')
@@ -135,25 +166,9 @@ document.getElementById('formMensalidade')
   msg.innerText = 'Mensalidade cadastrada com sucesso'
   msg.style.color = 'green'
 
+  document.getElementById('formMensalidade').reset()
   carregarHistorico()
 })
-
-/* ========================
- GERAR COMPETÊNCIAS
-======================== */
-
-function gerarCompetencias(inicio, fim){
-  const lista = []
-  let atual = new Date(inicio)
-  const dataFim = new Date(fim)
-
-  while(atual <= dataFim){
-    lista.push(new Date(atual))
-    atual.setMonth(atual.getMonth() + 1)
-  }
-
-  return lista
-}
 
 /* ========================
  STATUS AUTOMÁTICO
@@ -163,6 +178,7 @@ function calcularStatus(comp, diaVencimento, pago){
   if(pago) return 'Pago'
 
   const hoje = new Date()
+
   const vencimento = new Date(
     comp.getFullYear(),
     comp.getMonth(),
@@ -191,6 +207,13 @@ async function carregarHistorico(){
     .select('*')
     .eq('aluno_id', alunoId)
 
+  if(!mensalidades) return
+
+  // ordenar por data_inicio
+  mensalidades.sort((a,b) =>
+    new Date(a.data_inicio) - new Date(b.data_inicio)
+  )
+
   mensalidades.forEach(m => {
 
     const competencias = gerarCompetencias(
@@ -201,9 +224,11 @@ async function carregarHistorico(){
     competencias.forEach(comp => {
 
       const competenciaISO =
-        comp.toISOString().slice(0,7) + '-01'
+        comp.getFullYear() + '-' +
+        String(comp.getMonth()+1).padStart(2,'0') +
+        '-01'
 
-      const pago = pagamentos.find(p =>
+      const pago = pagamentos?.find(p =>
         p.mensalidade_id === m.id_mensalidade &&
         p.competencia === competenciaISO
       )
@@ -214,13 +239,9 @@ async function carregarHistorico(){
         !!pago
       )
 
-      const competenciaFmt =
-        String(comp.getMonth()+1).padStart(2,'0')
-        + '/' + comp.getFullYear()
-
       tabela.innerHTML += `
         <tr>
-          <td>${competenciaFmt}</td>
+          <td>${formatarCompetencia(comp)}</td>
           <td>R$ ${Number(m.valor).toFixed(2)}</td>
           <td>Dia ${m.dia_vencimento}</td>
           <td>${status}</td>
@@ -231,8 +252,8 @@ async function carregarHistorico(){
 }
 
 carregarHistorico()
-
 </script>
 
 </body>
 </html>
+
